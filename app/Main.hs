@@ -1,8 +1,8 @@
 module Main where
 
-import Data.Char (isSpace, isLetter, isDigit)
 import System.Environment
-import Data.Maybe (isJust)
+import Data.Char (isSpace, isLetter, isDigit)
+import Data.Maybe (isJust, isNothing, fromJust)
 
 
 data Token = CONJUNCTION
@@ -31,7 +31,7 @@ identifierToToken string
 getIdentifier :: String -> Maybe (String, String)
 getIdentifier [] = Just ("", "")
 getIdentifier (x:xs)
-    | isSpace x || isJust token  = Just ("", x:xs) 
+    | isSpace x || isJust token  = Just ("", x:xs)
     | isLetter x || isDigit x = case getIdentifier xs of
         Just (identifier, remainder) -> Just (x : identifier, remainder)
         Nothing -> Nothing
@@ -48,13 +48,11 @@ tokenize :: [Token] -> String -> Either [Token] String
 tokenize accumulator [] = Left accumulator
 tokenize accumulator (x:xs)
     | isSpace x = tokenize accumulator xs
-    | x == '(' = tokenize (accumulator ++ [LBRACKET]) xs
-    | x == ')' = tokenize (accumulator ++ [RBRACKET]) xs
-    | x == '0' = tokenize (accumulator ++ [CONSTANT False]) xs
-    | x == '1' = tokenize (accumulator ++ [CONSTANT True]) xs
-    | otherwise = case getIdentifier (x:xs) of 
+    | isJust maybeToken = tokenize (accumulator ++ [fromJust maybeToken]) xs
+    | otherwise = case getIdentifier (x:xs) of
         Just (identifier, remainder) -> tokenize (accumulator ++ [identifierToToken identifier]) remainder
         Nothing -> Right "Getting identifier impossible."
+    where maybeToken = charToToken x
 
 main :: IO ()
 main = do
