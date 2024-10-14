@@ -3,6 +3,7 @@ module Main where
 import System.Environment
 import Data.Char (isSpace, isLetter, isDigit)
 import Data.Maybe (isJust, isNothing, fromJust)
+import Data.Either (fromLeft)
 
 
 data Token = CONJUNCTION
@@ -14,9 +15,9 @@ data Token = CONJUNCTION
            | IDENTIFIER String
            deriving(Show)
 
-data BoolExpression = And BoolExpression BoolExpression
-                    | Or BoolExpression BoolExpression
-                    | Negation BoolExpression
+data BoolExpr = And BoolExpr BoolExpr
+                    | Or BoolExpr BoolExpr
+                    | Negation BoolExpr
                     | Variable String
                     | Constant Bool
                     deriving(Show)
@@ -54,6 +55,26 @@ tokenize accumulator (x:xs)
         Nothing -> Right "Getting identifier impossible."
     where maybeToken = charToToken x
 
+toMatchingBracket :: [Token] -> Either ([Token], [Token]) String
+toMatchingBracket tokens = Right "Error"
+
+tokenToBoolExpr :: Token -> Maybe BoolExpr
+tokenToBoolExpr (CONSTANT bool) = Just $ Constant bool 
+tokenToBoolExpr (IDENTIFIER string) = Just $ Variable string
+tokenToBoolExpr token = Nothing
+
+parseTwoSides :: Token -> [Token] -> [Token] -> Either BoolExpr String
+parseTwoSides CONJUNCTION left right = Left $ And (fromLeft (Constant False) (parse left)) (fromLeft (Constant False) (parse right))
+parseTwoSides DISJUNCTION left right = Left $ Or (fromLeft (Constant False) (parse left)) (fromLeft (Constant False) (parse right))
+
+parse :: [Token] -> Either BoolExpr String
+parse [] = Right "Operator is missing a value."
+parse [token] = case tokenToBoolExpr token of
+                    Just boolExpr -> Left boolExpr
+                    Nothing -> Right "Unexpected token"
+parse (x:y:xs) = parseTwoSides y [x] xs
+
+
 main :: IO ()
 main = do
     args <- getArgs;
@@ -61,4 +82,4 @@ main = do
     then print "Error: An argument with the boolean expression to be simplified is required."
     else do
         let tokensResult = tokenize [] $ head args
-        either print print tokensResult
+        either (print . parse) print tokensResult
