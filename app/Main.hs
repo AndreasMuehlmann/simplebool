@@ -31,13 +31,14 @@ identifierToToken string
     | string == "not" = NEGATION
     | otherwise = IDENTIFIER string
 
-getIdentifier :: String -> Maybe (String, String)
-getIdentifier [] = Just ("", "")
+getIdentifier :: String -> Either String (String, String)
+getIdentifier [] = Right ("", "")
 getIdentifier (x:xs)
-    | isSpace x || isJust token  = Just ("", x:xs)
-    | isLetter x || isDigit x = case getIdentifier xs of
-        Just (identifier, remainder) -> Just (x : identifier, remainder)
-        Nothing -> Nothing
+    | isSpace x || isJust token  = Right ("", x:xs)
+    | isLetter x || isDigit x = do
+                           (identifier, remainder) <- getIdentifier xs
+                           Right (x : identifier, remainder)
+    | otherwise = Left "Unexpected token"
     where token = charToToken x
 
 charToToken :: Char -> Maybe Token
@@ -52,9 +53,10 @@ tokenize accumulator [] = Right accumulator
 tokenize accumulator (x:xs)
     | isSpace x = tokenize accumulator xs
     | isJust maybeToken = tokenize (accumulator ++ [fromJust maybeToken]) xs
-    | otherwise = case getIdentifier (x:xs) of
-        Just (identifier, remainder) -> tokenize (accumulator ++ [identifierToToken identifier]) remainder
-        Nothing -> Left "Getting identifier impossible."
+    | otherwise = do
+        (identifier, remainder) <- getIdentifier (x:xs)
+        tokens <- tokenize (accumulator ++ [identifierToToken identifier]) remainder
+        Right tokens
     where maybeToken = charToToken x
 
 splitAtToken :: [Token] -> Token -> Maybe ([Token], [Token])
