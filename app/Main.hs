@@ -15,15 +15,31 @@ data Token = CONJUNCTION
            | RBRACKET
            | CONSTANT Bool
            | IDENTIFIER String
-           deriving(Show, Eq)
+           deriving(Eq)
 
 data BoolExpr = And BoolExpr BoolExpr
                     | Or BoolExpr BoolExpr
                     | Negation BoolExpr
                     | Variable String
                     | Constant Bool
-                    deriving(Show, Eq)
+                    deriving(Eq)
 
+instance Show BoolExpr where
+    show (And leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr) 
+                                    ++ " and " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
+    show (Or leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr) 
+                                   ++ " or " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
+    show (Negation expr) = "not " ++ show expr
+    show (Variable name) = name
+    show (Constant True) = "1"
+    show (Constant False) = "0"
+
+bracketsRequired :: BoolExpr -> Bool
+bracketsRequired (And x y) = True
+bracketsRequired (Or x y) = True
+bracketsRequired expr = False
+
+    
 identifierToToken :: String -> Token
 identifierToToken string
     | string == "and" = CONJUNCTION
@@ -92,10 +108,10 @@ parseBoolExprWithRemainder boolExpr remainder = do
                                             binaryOperator <- peekToken remainder
                                             parseBinaryOperator binaryOperator boolExpr (tail remainder)
 
-parseOperand :: [Token] -> Either String (BoolExpr, [Token])
-parseOperand (x:xs)
+parseTrivialOperand :: [Token] -> Either String (BoolExpr, [Token])
+parseTrivialOperand (x:xs)
     | x == NEGATION = do
-                    (boolExpr, remainder) <- parseOperand xs
+                    (boolExpr, remainder) <- parseTrivialOperand xs
                     Right (Negation boolExpr, remainder)
     | isRight $ tokenToBoolExpr x = do
                                 tokenBoolExpr <- tokenToBoolExpr x
@@ -112,7 +128,7 @@ parse (x:xs)
                                                             parseBoolExprWithRemainder boolExprBrackets remainder
                         Nothing -> Left "No Matching Bracket"
     | x == NEGATION || isRight (tokenToBoolExpr x) = do
-                                                (operand, remainder) <- parseOperand (x:xs)
+                                                (operand, remainder) <- parseTrivialOperand (x:xs)
                                                 parseBoolExprWithRemainder operand remainder
     | otherwise = Left "Unexpected Token while parsing"
 
