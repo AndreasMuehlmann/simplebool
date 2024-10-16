@@ -5,7 +5,7 @@ module Main where
 import System.Environment
 import Data.Char (isSpace, isLetter, isDigit)
 import Data.Maybe (isJust, isNothing, fromJust)
-import Data.Either (fromRight)
+import Data.Either (fromRight, isRight)
 
 
 data Token = CONJUNCTION
@@ -59,31 +59,59 @@ tokenize accumulator (x:xs)
         Right tokens
     where maybeToken = charToToken x
 
-splitAtToken :: [Token] -> Token -> Maybe ([Token], [Token])
-splitAtToken [] token = Nothing
-splitAtToken (x:xs) token
-    | token == x = Just ([], xs)
+splitAtMatchingBracket :: [Token] -> Int -> Maybe ([Token], [Token])
+splitAtMatchingBracket [] openingBracketCount = Nothing
+splitAtMatchingBracket (x:xs) openingBracketCount
+    | RBRACKET == x && openingBracketCount == 1 = Just ([], xs)
     | otherwise = do
-        (before, after) <- splitAtToken xs token
+        (before, after) <- splitAtMatchingBracket xs $ if x == RBRACKET then openingBracketCount + 1 else openingBracketCount
         Just (x : before, after)
 
-tokenToBoolExpr :: Token -> Either String BoolExpr 
+tokenToBoolExpr :: Token -> Either String BoolExpr
 tokenToBoolExpr (CONSTANT bool) = Right $ Constant bool
 tokenToBoolExpr (IDENTIFIER string) = Right $ Variable string
-tokenToBoolExpr token = Left "Unexpected token"
+tokenToBoolExpr token = Left "Token is not BoolExpr"
 
-parseBinaryOperator :: Token -> [Token] -> [Token] -> Either String BoolExpr
-parseBinaryOperator operator left right = do
-                                parsedLeft <- parse left
-                                parsedRight <- parse right
+parseBinaryOperator :: Token -> BoolExpr -> [Token] -> Either String BoolExpr
+parseBinaryOperator operator leftBoolExpr remainder = do
+                                parsedRight <- parse remainder
                                 case operator of
-                                    CONJUNCTION -> Right $ And parsedLeft parsedRight
-                                    DISJUNCTION -> Right $ Or parsedLeft parsedRight
+                                    CONJUNCTION -> Right $ And leftBoolExpr parsedRight
+                                    DISJUNCTION -> Right $ Or leftBoolExpr parsedRight
+
+peekToken :: [Token] -> Either String Token
+peekToken [] = Left "No Token while peeking"
+peekToken (x:xs) = Right x
+
+parseBoolExprWithRemainder :: BoolExpr -> [Token] -> Either String BoolExpr
+parseBoolExprWithRemainder boolExpr [] = Right boolExpr
+parseBoolExprWithRemainder boolExpr remainder = do
+                                            binaryOperator <- peekToken remainder
+                                            parseBinaryOperator binaryOperator boolExpr (tail remainder)
+
+parseOperand :: [Token] -> Either String (BoolExpr, [Token])
+parseOperand (x:xs)
+    | x == NEGATION = do
+                    (boolExpr, remainder) <- parseOperand xs
+                    Right (Negation boolExpr, remainder)
+    | isRight $ tokenToBoolExpr x = do
+                                tokenBoolExpr <- tokenToBoolExpr x
+                                Right (tokenBoolExpr, xs)
+    | otherwise = Left "Unexpected Token while parsing"
 
 parse :: [Token] -> Either String BoolExpr
 parse [] = Left "Operator is missing a value."
 parse [token] = tokenToBoolExpr token
-parse (x:y:xs) = parseBinaryOperator y [x] xs
+parse (x:xs)
+    | x == LBRACKET = case splitAtMatchingBracket xs 1 of
+                        Just (toMatchingBracket, remainder) -> do
+                                                            boolExprBrackets <- parse toMatchingBracket
+                                                            parseBoolExprWithRemainder boolExprBrackets remainder
+                        Nothing -> Left "No Matching Bracket"
+    | x == NEGATION || isRight (tokenToBoolExpr x) = do
+                                                (operand, remainder) <- parseOperand (x:xs)
+                                                parseBoolExprWithRemainder operand remainder
+    | otherwise = Left "Unexpected Token while parsing"
 
 
 main :: IO ()
