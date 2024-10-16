@@ -60,11 +60,14 @@ tokenize accumulator (x:xs)
     where maybeToken = charToToken x
 
 splitAtMatchingBracket :: [Token] -> Int -> Maybe ([Token], [Token])
-splitAtMatchingBracket [] openingBracketCount = Nothing
-splitAtMatchingBracket (x:xs) openingBracketCount
-    | RBRACKET == x && openingBracketCount == 1 = Just ([], xs)
+splitAtMatchingBracket [] bracketCount = Nothing
+splitAtMatchingBracket (x:xs) bracketCount
+    | RBRACKET == x && bracketCount == 1 = Just ([], xs)
     | otherwise = do
-        (before, after) <- splitAtMatchingBracket xs $ if x == RBRACKET then openingBracketCount + 1 else openingBracketCount
+        (before, after) <- splitAtMatchingBracket xs $ case x of
+                                                        LBRACKET -> bracketCount + 1
+                                                        RBRACKET -> bracketCount - 1
+                                                        _ -> bracketCount
         Just (x : before, after)
 
 tokenToBoolExpr :: Token -> Either String BoolExpr
