@@ -15,7 +15,7 @@ data Token = CONJUNCTION
            | RBRACKET
            | CONSTANT Bool
            | IDENTIFIER String
-           deriving(Eq)
+           deriving(Show, Eq)
 
 data BoolExpr = And BoolExpr BoolExpr
                     | Or BoolExpr BoolExpr
@@ -132,6 +132,11 @@ parse (x:xs)
                                                 parseBoolExprWithRemainder operand remainder
     | otherwise = Left "Unexpected Token while parsing"
 
+toAbstractSyntaxTree :: String -> Either String BoolExpr
+toAbstractSyntaxTree input = do
+        tokens <- tokenize [] input
+        abstractSyntaxTree <- parse tokens
+        Right abstractSyntaxTree
 
 main :: IO ()
 main = do
@@ -139,5 +144,7 @@ main = do
     if null args
     then print "Error: An argument with the boolean expression to be simplified is required."
     else do
-        let tokensResult = tokenize [] $ head args
-        either print (print . parse) tokensResult
+        let result = toAbstractSyntaxTree $ head args
+        case result of
+            Right abstractSyntaxTree -> print abstractSyntaxTree
+            Left err -> print err
