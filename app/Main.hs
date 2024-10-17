@@ -15,7 +15,15 @@ data Token = CONJUNCTION
            | RBRACKET
            | CONSTANT Bool
            | IDENTIFIER String
-           deriving(Show, Eq)
+           deriving(Eq)
+
+instance Show Token where
+    show CONJUNCTION = "and"
+    show DISJUNCTION = "or"
+    show (IDENTIFIER name) = name
+    show (CONSTANT True) = "1"
+    show (CONSTANT False) = "0"
+
 
 data BoolExpr = And BoolExpr BoolExpr
                     | Or BoolExpr BoolExpr
@@ -25,9 +33,9 @@ data BoolExpr = And BoolExpr BoolExpr
                     deriving(Eq)
 
 instance Show BoolExpr where
-    show (And leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr) 
+    show (And leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr)
                                     ++ " and " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
-    show (Or leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr) 
+    show (Or leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr)
                                    ++ " or " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
     show (Negation expr) = if bracketsRequired expr then "not (" ++ show expr ++ ")" else "not " ++ show expr
     show (Variable name) = name
@@ -38,7 +46,7 @@ bracketsRequired :: BoolExpr -> Bool
 bracketsRequired (And x y) = True
 bracketsRequired (Or x y) = True
 bracketsRequired expr = False
-    
+
 identifierToToken :: String -> Token
 identifierToToken string
     | string == "and" = CONJUNCTION
@@ -90,51 +98,46 @@ tokenToBoolExpr (CONSTANT bool) = Right $ Constant bool
 tokenToBoolExpr (IDENTIFIER string) = Right $ Variable string
 tokenToBoolExpr token = Left "Token is not BoolExpr"
 
-parseBinaryOperator :: Token -> BoolExpr -> [Token] -> Either String BoolExpr
-parseBinaryOperator operator leftBoolExpr remainder = do
-                                parsedRight <- parse remainder
-                                case operator of
-                                    CONJUNCTION -> Right $ And leftBoolExpr parsedRight
-                                    DISJUNCTION -> Right $ Or leftBoolExpr parsedRight
-
-parseBoolExprWithRemainder :: BoolExpr -> [Token] -> Either String BoolExpr
-parseBoolExprWithRemainder boolExpr [] = Right boolExpr
-parseBoolExprWithRemainder boolExpr remainder = do
+parseBoolExprWithRemainder :: Int -> BoolExpr -> [Token] -> Either String BoolExpr
+parseBoolExprWithRemainder tokenIndex leftBoolExpr [] = Right leftBoolExpr
+parseBoolExprWithRemainder tokenIndex leftBoolExpr remainder = do
                                             let binaryOperator = head remainder
-                                            parseBinaryOperator binaryOperator boolExpr (tail remainder)
+                                            rightBoolExpr <- parse (tokenIndex + 1) (tail remainder)
+                                            case binaryOperator of
+                                                CONJUNCTION -> Right $ And leftBoolExpr rightBoolExpr
+                                                DISJUNCTION -> Right $ Or leftBoolExpr rightBoolExpr
 
-parseBracket :: [Token] -> Either String (BoolExpr, [Token])
-parseBracket tokens = case splitAtMatchingBracket tokens 1 of
-                        Just (toMatchingBracket, remainder) -> do
-                                                            boolExprBrackets <- parse toMatchingBracket
-                                                            Right (boolExprBrackets, remainder)
+parseBracket :: Int -> [Token] -> Either String (BoolExpr, [Token], Int)
+parseBracket tokenIndex tokens = case splitAtMatchingBracket tokens 1 of
                         Nothing -> Left "No Matching Bracket"
+                        Just (toMatchingBracket, remainder) -> do
+                                                            boolExprBrackets <- parse (tokenIndex + length toMatchingBracket + 1) toMatchingBracket
+                                                            Right (boolExprBrackets, remainder, tokenIndex + length toMatchingBracket + 1)
 
-parseOperand :: [Token] -> Either String (BoolExpr, [Token])
-parseOperand [] = Left "Parsing empty list of tokens to boolean expression is impossible."
-parseOperand [token] = do
+parseOperand :: Int -> [Token] -> Either String (BoolExpr, [Token], Int)
+parseOperand tokenIndex [] = Left "Parsing empty list of tokens to boolean expression is impossible."
+parseOperand tokenIndex [token] = do
                     boolExpr <- tokenToBoolExpr token
-                    Right (boolExpr, [])
-parseOperand (x:xs)
+                    Right (boolExpr, [], tokenIndex + 1)
+parseOperand tokenIndex (x:xs)
     | x == NEGATION = do
-                    (boolExpr, remainder) <- parseOperand xs
-                    Right (Negation boolExpr, remainder)
+                    (boolExpr, remainder, newTokenIndex) <- parseOperand (tokenIndex + 1) xs
+                    Right (Negation boolExpr, remainder, newTokenIndex)
     | isRight $ tokenToBoolExpr x = do
                                 tokenBoolExpr <- tokenToBoolExpr x
-                                Right (tokenBoolExpr, xs)
-    | x == LBRACKET = parseBracket xs
-    | otherwise = Left "Unexpected Token while parsing"
+                                Right (tokenBoolExpr, xs, tokenIndex + 1)
+    | x == LBRACKET = parseBracket (tokenIndex + 1) xs
+    | otherwise = Left $ "Unexpected token \"" ++ show x ++ "\" at position " ++ show (tokenIndex + 1) ++ ". Expected operand."
 
-
-parse :: [Token] -> Either String BoolExpr
-parse tokens = do
-            (operand, remainder) <- parseOperand tokens
-            parseBoolExprWithRemainder operand remainder
+parse :: Int -> [Token] -> Either String BoolExpr
+parse tokenIndex tokens = do
+            (operand, remainder, newTokenIndex) <- parseOperand tokenIndex tokens
+            parseBoolExprWithRemainder newTokenIndex operand remainder
 
 toAbstractSyntaxTree :: String -> Either String BoolExpr
 toAbstractSyntaxTree input = do
         tokens <- tokenize [] input
-        abstractSyntaxTree <- parse tokens
+        abstractSyntaxTree <- parse 0 tokens
         Right abstractSyntaxTree
 
 main :: IO ()
@@ -146,4 +149,4 @@ main = do
         let result = toAbstractSyntaxTree $ head args
         case result of
             Right abstractSyntaxTree -> print abstractSyntaxTree
-            Left err -> print err
+            Left err -> putStrLn err
