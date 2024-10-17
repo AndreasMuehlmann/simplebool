@@ -29,7 +29,7 @@ instance Show BoolExpr where
                                     ++ " and " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
     show (Or leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr) 
                                    ++ " or " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
-    show (Negation expr) = "not " ++ show expr
+    show (Negation expr) = if bracketsRequired expr then "not (" ++ show expr ++ ")" else "not " ++ show expr
     show (Variable name) = name
     show (Constant True) = "1"
     show (Constant False) = "0"
@@ -38,7 +38,6 @@ bracketsRequired :: BoolExpr -> Bool
 bracketsRequired (And x y) = True
 bracketsRequired (Or x y) = True
 bracketsRequired expr = False
-
     
 identifierToToken :: String -> Token
 identifierToToken string
@@ -98,39 +97,39 @@ parseBinaryOperator operator leftBoolExpr remainder = do
                                     CONJUNCTION -> Right $ And leftBoolExpr parsedRight
                                     DISJUNCTION -> Right $ Or leftBoolExpr parsedRight
 
-peekToken :: [Token] -> Either String Token
-peekToken [] = Left "No Token while peeking"
-peekToken (x:xs) = Right x
-
 parseBoolExprWithRemainder :: BoolExpr -> [Token] -> Either String BoolExpr
 parseBoolExprWithRemainder boolExpr [] = Right boolExpr
 parseBoolExprWithRemainder boolExpr remainder = do
-                                            binaryOperator <- peekToken remainder
+                                            let binaryOperator = head remainder
                                             parseBinaryOperator binaryOperator boolExpr (tail remainder)
 
-parseTrivialOperand :: [Token] -> Either String (BoolExpr, [Token])
-parseTrivialOperand (x:xs)
+parseBracket :: [Token] -> Either String (BoolExpr, [Token])
+parseBracket tokens = case splitAtMatchingBracket tokens 1 of
+                        Just (toMatchingBracket, remainder) -> do
+                                                            boolExprBrackets <- parse toMatchingBracket
+                                                            Right (boolExprBrackets, remainder)
+                        Nothing -> Left "No Matching Bracket"
+
+parseOperand :: [Token] -> Either String (BoolExpr, [Token])
+parseOperand [] = Left "Parsing empty list of tokens to boolean expression is impossible."
+parseOperand [token] = do
+                    boolExpr <- tokenToBoolExpr token
+                    Right (boolExpr, [])
+parseOperand (x:xs)
     | x == NEGATION = do
-                    (boolExpr, remainder) <- parseTrivialOperand xs
+                    (boolExpr, remainder) <- parseOperand xs
                     Right (Negation boolExpr, remainder)
     | isRight $ tokenToBoolExpr x = do
                                 tokenBoolExpr <- tokenToBoolExpr x
                                 Right (tokenBoolExpr, xs)
+    | x == LBRACKET = parseBracket xs
     | otherwise = Left "Unexpected Token while parsing"
 
+
 parse :: [Token] -> Either String BoolExpr
-parse [] = Left "Operator is missing a value."
-parse [token] = tokenToBoolExpr token
-parse (x:xs)
-    | x == LBRACKET = case splitAtMatchingBracket xs 1 of
-                        Just (toMatchingBracket, remainder) -> do
-                                                            boolExprBrackets <- parse toMatchingBracket
-                                                            parseBoolExprWithRemainder boolExprBrackets remainder
-                        Nothing -> Left "No Matching Bracket"
-    | x == NEGATION || isRight (tokenToBoolExpr x) = do
-                                                (operand, remainder) <- parseTrivialOperand (x:xs)
-                                                parseBoolExprWithRemainder operand remainder
-    | otherwise = Left "Unexpected Token while parsing"
+parse tokens = do
+            (operand, remainder) <- parseOperand tokens
+            parseBoolExprWithRemainder operand remainder
 
 toAbstractSyntaxTree :: String -> Either String BoolExpr
 toAbstractSyntaxTree input = do
