@@ -9,41 +9,45 @@ import Parse (BoolExpr(Constant))
 
 
 identity:: P.BoolExpr -> Maybe P.BoolExpr
-identity (P.And (P.Constant True) rightBoolExpr) = Just rightBoolExpr
-identity (P.And leftBoolExpr (P.Constant True)) = Just leftBoolExpr
-identity (P.Or (P.Constant False) rightBoolExpr) = Just rightBoolExpr
-identity (P.Or leftBoolExpr (P.Constant False)) = Just leftBoolExpr
+identity (P.Conjunction (P.Constant True) rightBoolExpr) = Just rightBoolExpr
+identity (P.Conjunction leftBoolExpr (P.Constant True)) = Just leftBoolExpr
+identity (P.Disjunction (P.Constant False) rightBoolExpr) = Just rightBoolExpr
+identity (P.Disjunction leftBoolExpr (P.Constant False)) = Just leftBoolExpr
 identity boolExpr = Nothing
 
 annihilation :: P.BoolExpr -> Maybe P.BoolExpr
-annihilation (P.And (P.Constant False) rightBoolExpr) = Just $ P.Constant False
-annihilation (P.And leftBoolExpr (P.Constant False)) = Just $ P.Constant False
-annihilation (P.Or (P.Constant True) rightBoolExpr) = Just $ P.Constant True
-annihilation (P.Or leftBoolExpr (P.Constant True)) = Just $ P.Constant True
+annihilation (P.Conjunction (P.Constant False) rightBoolExpr) = Just $ P.Constant False
+annihilation (P.Conjunction leftBoolExpr (P.Constant False)) = Just $ P.Constant False
+annihilation (P.Disjunction (P.Constant True) rightBoolExpr) = Just $ P.Constant True
+annihilation (P.Disjunction leftBoolExpr (P.Constant True)) = Just $ P.Constant True
 annihilation boolExpr = Nothing
 
 idempotence :: P.BoolExpr -> Maybe P.BoolExpr
-idempotence (P.And leftBoolExpr rightBoolExpr)
+idempotence (P.Conjunction leftBoolExpr rightBoolExpr)
     | leftBoolExpr == rightBoolExpr = Just leftBoolExpr
     | otherwise = Nothing
-idempotence (P.Or leftBoolExpr rightBoolExpr)
+idempotence (P.Disjunction leftBoolExpr rightBoolExpr)
     | leftBoolExpr == rightBoolExpr = Just leftBoolExpr
     | otherwise = Nothing
 idempotence boolExpr = Nothing
+
+negation :: P.BoolExpr -> Maybe P.BoolExpr
+negation (P.Negation (Constant val)) = Just $ Constant (not val)
+negation boolExpr = Nothing
 
 applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> String -> P.BoolExpr -> Maybe (P.BoolExpr, String)
 applyRule rule ruleName boolExpr = case rule boolExpr of
                             Just newBoolExpr -> Just (newBoolExpr, ruleName)
                             Nothing -> case boolExpr of
-                                P.And leftBoolExpr rightBoolExpr -> case applyRule rule ruleName leftBoolExpr of
-                                    Just (newLeftBoolExpr, ruleName) -> Just (P.And newLeftBoolExpr rightBoolExpr, ruleName)
+                                P.Conjunction leftBoolExpr rightBoolExpr -> case applyRule rule ruleName leftBoolExpr of
+                                    Just (newLeftBoolExpr, ruleName) -> Just (P.Conjunction newLeftBoolExpr rightBoolExpr, ruleName)
                                     Nothing -> case applyRule rule ruleName rightBoolExpr of
-                                        Just (newRightBoolExpr, ruleName) -> Just (P.And leftBoolExpr newRightBoolExpr, ruleName)
+                                        Just (newRightBoolExpr, ruleName) -> Just (P.Conjunction leftBoolExpr newRightBoolExpr, ruleName)
                                         Nothing -> Nothing
-                                P.Or leftBoolExpr rightBoolExpr -> case applyRule rule ruleName leftBoolExpr of
-                                    Just (newLeftBoolExpr, ruleName) -> Just (P.Or newLeftBoolExpr rightBoolExpr, ruleName)
+                                P.Disjunction leftBoolExpr rightBoolExpr -> case applyRule rule ruleName leftBoolExpr of
+                                    Just (newLeftBoolExpr, ruleName) -> Just (P.Disjunction newLeftBoolExpr rightBoolExpr, ruleName)
                                     Nothing -> case applyRule rule ruleName rightBoolExpr of
-                                        Just (newRightBoolExpr, ruleName) -> Just (P.Or leftBoolExpr newRightBoolExpr, ruleName)
+                                        Just (newRightBoolExpr, ruleName) -> Just (P.Disjunction leftBoolExpr newRightBoolExpr, ruleName)
                                         Nothing -> Nothing
                                 P.Negation boolExpr -> case applyRule rule ruleName boolExpr of
                                     Just (newNegatedBoolExpr, ruleName) -> Just (P.Negation newNegatedBoolExpr, ruleName)
@@ -58,7 +62,11 @@ firstJust (x:xs) = case x of
 
 applyRules :: P.BoolExpr -> Maybe (P.BoolExpr, String)
 applyRules boolExpr = firstJust $ map ($ boolExpr) rules
-                    where rules = [applyRule identity "identity", applyRule annihilation "annihilation", applyRule idempotence "idempotence"]
+                    where rules = [ applyRule annihilation "annihilation"
+                                  , applyRule identity "identity"
+                                  , applyRule negation "negation"
+                                  , applyRule idempotence "idempotence"
+                                  ]
 
 simplify :: P.BoolExpr -> [(P.BoolExpr, String)]
 simplify boolExpr = case applyRules boolExpr of
@@ -77,5 +85,5 @@ main = do
     else do
         let result = P.toAbstractSyntaxTree $ head args
         case result of
-            Right abstractSyntaxTree -> print abstractSyntaxTree
+            Right abstractSyntaxTree -> printSimplification $ simplify abstractSyntaxTree
             Left err -> putStrLn $ "Error: " ++ err

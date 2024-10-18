@@ -24,17 +24,17 @@ instance Show Token where
     show (CONSTANT True) = "1"
     show (CONSTANT False) = "0"
 
-data BoolExpr = And BoolExpr BoolExpr
-                    | Or BoolExpr BoolExpr
-                    | Negation BoolExpr
-                    | Variable String
-                    | Constant Bool
-                    deriving(Eq)
+data BoolExpr = Conjunction BoolExpr BoolExpr
+              | Disjunction BoolExpr BoolExpr
+              | Negation BoolExpr
+              | Variable String
+              | Constant Bool
+              deriving(Eq)
 
 instance Show BoolExpr where
-    show (And leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr)
+    show (Conjunction leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr)
                                     ++ " and " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
-    show (Or leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr)
+    show (Disjunction leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr)
                                    ++ " or " ++ (if bracketsRequired rightExpr then "(" ++ show rightExpr ++ ")" else show rightExpr)
     show (Negation expr) = if bracketsRequired expr then "not (" ++ show expr ++ ")" else "not " ++ show expr
     show (Variable name) = name
@@ -42,8 +42,8 @@ instance Show BoolExpr where
     show (Constant False) = "0"
 
 bracketsRequired :: BoolExpr -> Bool
-bracketsRequired (And x y) = True
-bracketsRequired (Or x y) = True
+bracketsRequired (Conjunction x y) = True
+bracketsRequired (Disjunction x y) = True
 bracketsRequired expr = False
 
 identifierToToken :: String -> Token
@@ -105,8 +105,8 @@ parseBoolExprWithRemainder tokenIndex leftBoolExpr remainder =
                                             else do
                                                 (rightBoolExpr, remainder, newTokenIndex) <- parseOperand (tokenIndex + 1) (tail remainder)
                                                 case binaryOperator of
-                                                    CONJUNCTION -> parseBoolExprWithRemainder newTokenIndex (And leftBoolExpr rightBoolExpr) remainder
-                                                    DISJUNCTION -> parseBoolExprWithRemainder newTokenIndex (Or leftBoolExpr rightBoolExpr) remainder
+                                                    CONJUNCTION -> parseBoolExprWithRemainder newTokenIndex (Conjunction leftBoolExpr rightBoolExpr) remainder
+                                                    DISJUNCTION -> parseBoolExprWithRemainder newTokenIndex (Disjunction leftBoolExpr rightBoolExpr) remainder
                                             where binaryOperator = head remainder
 
 parseBracket :: Int -> [Token] -> Either String (BoolExpr, [Token], Int)
