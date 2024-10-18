@@ -13,5 +13,6 @@ main = do
     else do
         let result = P.toAbstractSyntaxTree $ head args
         case result of
-            Right abstractSyntaxTree -> S.printSimplification $ S.simplify abstractSyntaxTree
+            Right abstractSyntaxTree -> S.printSimplificationWithInitialExpr abstractSyntaxTree $
+                                        S.simplify abstractSyntaxTree
             Left err -> putStrLn $ "Error: " ++ err
