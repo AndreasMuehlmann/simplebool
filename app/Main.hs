@@ -14,5 +14,5 @@ main = do
         let result = P.toAbstractSyntaxTree $ head args
         case result of
             Right abstractSyntaxTree -> S.printSimplificationWithInitialExpr abstractSyntaxTree $
-                                        S.simplify abstractSyntaxTree
+                                        S.applySimplifyingRules abstractSyntaxTree
             Left err -> putStrLn $ "Error: " ++ err

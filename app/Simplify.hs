@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use first" #-}
 module Simplify where
 
 import qualified Parse as P
@@ -79,27 +81,48 @@ applyRule rule ruleName boolExpr = case rule boolExpr of
                                     Nothing -> Nothing
                                 _ -> Nothing
 
+allRuleApplications :: (P.BoolExpr -> Maybe P.BoolExpr) -> String -> P.BoolExpr -> [(P.BoolExpr, String)]
+allRuleApplications rule ruleName boolExpr = case rule boolExpr of
+                                                Nothing -> case boolExpr of
+                                                    P.Conjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Conjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Conjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
+                                                    P.Disjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Disjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Disjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
+                                                    P.Negation boolExpr -> map (\(newBoolExpr, ruleName) -> (P.Negation newBoolExpr, ruleName)) (allRuleApplications rule ruleName boolExpr)
+                                                    _ -> []
+                                                Just newBoolExpr -> (newBoolExpr, ruleName) : (case boolExpr of
+                                                    P.Conjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Conjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Conjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
+                                                    P.Disjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Disjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Disjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
+                                                    P.Negation boolExpr -> map (\(newBoolExpr, ruleName) -> (P.Negation newBoolExpr, ruleName)) (allRuleApplications rule ruleName boolExpr)
+                                                    _ -> [])
+
 firstJust :: [Maybe a] -> Maybe a
 firstJust [] = Nothing
 firstJust (x:xs) = case x of
     Just val -> Just val
     Nothing  -> firstJust xs
 
-applyRules :: P.BoolExpr -> Maybe (P.BoolExpr, String)
-applyRules boolExpr = firstJust $ map ($ boolExpr) rules
-                    where rules = [ applyRule annihilation "annihilation"
-                                  , applyRule identity "identity"
-                                  , applyRule duality "duality"
-                                  , applyRule doubleNegation "double negation"
-                                  , applyRule idempotence "idempotence"
-                                  , applyRule komplement "komplement"
-                                  , applyRule absorption "absorption"
-                                  ]
+applyRules :: [(P.BoolExpr -> Maybe P.BoolExpr, String)] -> P.BoolExpr -> Maybe (P.BoolExpr, String)
+applyRules rules boolExpr = firstJust $ map ($ boolExpr) curried
+                    where curried = map (uncurry applyRule) rules
 
-simplify :: P.BoolExpr -> [(P.BoolExpr, String)]
-simplify boolExpr = case applyRules boolExpr of
+score :: P.BoolExpr -> Int
+score (P.Conjunction leftBoolExpr rightBoolExpr) = 1 + score leftBoolExpr + score rightBoolExpr
+score (P.Disjunction leftBoolExpr rightBoolExpr) = 1 + score leftBoolExpr + score rightBoolExpr
+score (P.Negation boolExpr) = 1 + score boolExpr
+score (P.Constant value) = 1
+score (P.Variable name) = 1
+
+applySimplifyingRules :: P.BoolExpr -> [(P.BoolExpr, String)]
+applySimplifyingRules boolExpr = case applyRules simplifyingRules boolExpr of
                         Nothing -> []
-                        Just (simplifiedBoolExpr, ruleName) -> (simplifiedBoolExpr, ruleName) : simplify simplifiedBoolExpr
+                        Just (simplifiedBoolExpr, ruleName) -> (simplifiedBoolExpr, ruleName) : applySimplifyingRules simplifiedBoolExpr
+                  where simplifyingRules = [ (annihilation, "annihilation")
+                                           , (identity, "identity")
+                                           , (duality, "duality")
+                                           , (doubleNegation, "double negation")
+                                           , (idempotence, "idempotence")
+                                           , (komplement, "komplement")
+                                           , (absorption, "absorption")
+                                           ]
 
 printSimplificationWithInitialExpr :: P.BoolExpr -> [(P.BoolExpr, String)] -> IO ()
 printSimplificationWithInitialExpr initialBoolExpr simplification = print initialBoolExpr >> printSimplification simplification
