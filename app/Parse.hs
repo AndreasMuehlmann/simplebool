@@ -29,7 +29,16 @@ data BoolExpr = Conjunction BoolExpr BoolExpr
               | Negation BoolExpr
               | Variable String
               | Constant Bool
-              deriving(Eq)
+
+instance Eq BoolExpr where  
+    Constant leftValue == Constant rightValue = leftValue == rightValue  
+    Variable leftName == Variable rightName = leftName == rightName  
+    Negation leftBoolExpr == Negation rightBoolExpr = leftBoolExpr == rightBoolExpr
+    Conjunction leftLeftBoolExpr leftRightBoolExpr == Conjunction rightLeftBoolExpr rightRightBoolExpr = (leftLeftBoolExpr == rightLeftBoolExpr) &&
+                                                                                                         (leftRightBoolExpr == rightRightBoolExpr)
+    Disjunction leftLeftBoolExpr leftRightBoolExpr == Disjunction rightLeftBoolExpr rightRightBoolExpr = (leftLeftBoolExpr == rightLeftBoolExpr) &&
+                                                                                                         (leftRightBoolExpr == rightRightBoolExpr)
+    _ == _ = False  
 
 instance Show BoolExpr where
     show (Conjunction leftExpr rightExpr) = (if bracketsRequired leftExpr then "(" ++ show leftExpr ++ ")" else show leftExpr)

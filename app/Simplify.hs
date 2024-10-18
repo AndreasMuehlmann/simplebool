@@ -26,9 +26,9 @@ idempotence (P.Disjunction leftBoolExpr rightBoolExpr)
     | otherwise = Nothing
 idempotence boolExpr = Nothing
 
-negation :: P.BoolExpr -> Maybe P.BoolExpr
-negation (P.Negation (P.Constant val)) = Just $ P.Constant (not val)
-negation boolExpr = Nothing
+duality :: P.BoolExpr -> Maybe P.BoolExpr
+duality (P.Negation (P.Constant val)) = Just $ P.Constant (not val)
+duality boolExpr = Nothing
 
 applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> String -> P.BoolExpr -> Maybe (P.BoolExpr, String)
 applyRule rule ruleName boolExpr = case rule boolExpr of
@@ -59,7 +59,7 @@ applyRules :: P.BoolExpr -> Maybe (P.BoolExpr, String)
 applyRules boolExpr = firstJust $ map ($ boolExpr) rules
                     where rules = [ applyRule annihilation "annihilation"
                                   , applyRule identity "identity"
-                                  , applyRule negation "negation"
+                                  , applyRule duality "duality"
                                   , applyRule idempotence "idempotence"
                                   ]
 
