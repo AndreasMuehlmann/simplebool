@@ -14,5 +14,5 @@ main = do
       case result of
         Right abstractSyntaxTree ->
           S.printSimplificationWithInitialExpr abstractSyntaxTree $
-            S.applySimplifyingRules abstractSyntaxTree
+            S.simplify 0 abstractSyntaxTree
         Left err -> putStrLn $ "Error: " ++ err

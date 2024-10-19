@@ -5,7 +5,14 @@
 module Simplify where
 
 import Control.Applicative
+import Data.Foldable (maximumBy)
+import Data.Maybe (maybeToList)
+import Data.Ord (comparing)
 import qualified Parse as P
+
+type RuleApplication = (P.BoolExpr, String)
+
+type Simplification = [RuleApplication]
 
 identity :: P.BoolExpr -> Maybe P.BoolExpr
 identity (P.Conjunction (P.Constant True) rightBoolExpr) = Just rightBoolExpr
@@ -68,6 +75,11 @@ absorption (P.Conjunction (P.Disjunction boolExprB boolExprC) boolExprA)
   | otherwise = Nothing
 absorption boolExpr = Nothing
 
+kommutativ :: P.BoolExpr -> Maybe P.BoolExpr
+kommutativ (P.Conjunction leftBoolExpr rightBoolExpr) = Just $ P.Conjunction rightBoolExpr leftBoolExpr
+kommutativ (P.Disjunction leftBoolExpr rightBoolExpr) = Just $ P.Disjunction rightBoolExpr leftBoolExpr
+kommutativ boolExpr = Nothing
+
 applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> P.BoolExpr -> Maybe P.BoolExpr
 applyRule rule boolExpr =
   rule boolExpr
@@ -77,36 +89,40 @@ applyRule rule boolExpr =
       P.Negation boolExpr -> P.Negation <$> applyRule rule boolExpr
       _ -> Nothing
 
-allRuleApplications :: (P.BoolExpr -> Maybe P.BoolExpr) -> String -> P.BoolExpr -> [(P.BoolExpr, String)]
-allRuleApplications rule ruleName boolExpr = case rule boolExpr of
-  Nothing -> case boolExpr of
-    P.Conjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Conjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Conjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
-    P.Disjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Disjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Disjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
-    P.Negation boolExpr -> map (\(newBoolExpr, ruleName) -> (P.Negation newBoolExpr, ruleName)) (allRuleApplications rule ruleName boolExpr)
-    _ -> []
-  Just newBoolExpr ->
-    (newBoolExpr, ruleName)
-      : ( case boolExpr of
-            P.Conjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Conjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Conjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
-            P.Disjunction leftBoolExpr rightBoolExpr -> map (\(newBoolExpr, ruleName) -> (P.Disjunction newBoolExpr rightBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr) ++ map (\(newBoolExpr, ruleName) -> (P.Disjunction leftBoolExpr newBoolExpr, ruleName)) (allRuleApplications rule ruleName leftBoolExpr)
-            P.Negation boolExpr -> map (\(newBoolExpr, ruleName) -> (P.Negation newBoolExpr, ruleName)) (allRuleApplications rule ruleName boolExpr)
-            _ -> []
-        )
+allRuleApplications :: (P.BoolExpr -> Maybe P.BoolExpr) -> P.BoolExpr -> [P.BoolExpr]
+allRuleApplications rule boolExpr =
+  maybeToList (rule boolExpr)
+    ++ case boolExpr of
+      P.Conjunction leftBoolExpr rightBoolExpr -> map (`P.Conjunction` rightBoolExpr) (allRuleApplications rule leftBoolExpr) ++ map (P.Conjunction leftBoolExpr) (allRuleApplications rule rightBoolExpr)
+      P.Disjunction leftBoolExpr rightBoolExpr -> map (`P.Disjunction` rightBoolExpr) (allRuleApplications rule leftBoolExpr) ++ map (P.Disjunction leftBoolExpr) (allRuleApplications rule rightBoolExpr)
+      P.Negation boolExpr -> map P.Negation (allRuleApplications rule boolExpr)
+      _ -> []
 
-applyRules :: [(P.BoolExpr -> Maybe P.BoolExpr, String)] -> P.BoolExpr -> Maybe (P.BoolExpr, String)
+applyRules :: [(P.BoolExpr -> Maybe P.BoolExpr, String)] -> P.BoolExpr -> Maybe RuleApplication
 applyRules rules boolExpr = foldr (<|>) Nothing appliedRules
   where
     curried = map (\(rule, ruleName) -> (applyRule rule, ruleName)) rules
-    appliedRules = map (\(rule, ruleName) -> (\newBoolExpr -> (newBoolExpr, ruleName)) <$> rule boolExpr) curried
+    appliedRules = map (\(ruleApplication, ruleName) -> (\newBoolExpr -> (newBoolExpr, ruleName)) <$> ruleApplication boolExpr) curried
 
-score :: P.BoolExpr -> Int
-score (P.Conjunction leftBoolExpr rightBoolExpr) = 1 + score leftBoolExpr + score rightBoolExpr
-score (P.Disjunction leftBoolExpr rightBoolExpr) = 1 + score leftBoolExpr + score rightBoolExpr
-score (P.Negation boolExpr) = 1 + score boolExpr
-score (P.Constant value) = 1
-score (P.Variable name) = 1
+allRuleApplicationsForRules :: [(P.BoolExpr -> Maybe P.BoolExpr, String)] -> P.BoolExpr -> [RuleApplication]
+allRuleApplicationsForRules rules boolExpr = concat appliedRules
+  where
+    curried = map (\(rule, ruleName) -> (allRuleApplications rule, ruleName)) rules
+    appliedRules = map (\(ruleApplication, ruleName) -> (\newBoolExpr -> (newBoolExpr, ruleName)) <$> ruleApplication boolExpr) curried
 
-applySimplifyingRules :: P.BoolExpr -> [(P.BoolExpr, String)]
+allRuleApplicationsChangingRules :: P.BoolExpr -> [RuleApplication]
+allRuleApplicationsChangingRules = allRuleApplicationsForRules changingRules
+  where
+    changingRules = [(kommutativ, "kommutativ")]
+
+complexity :: P.BoolExpr -> Int
+complexity (P.Conjunction leftBoolExpr rightBoolExpr) = 1 + complexity leftBoolExpr + complexity rightBoolExpr
+complexity (P.Disjunction leftBoolExpr rightBoolExpr) = 1 + complexity leftBoolExpr + complexity rightBoolExpr
+complexity (P.Negation boolExpr) = 1 + complexity boolExpr
+complexity (P.Constant value) = 1
+complexity (P.Variable name) = 1
+
+applySimplifyingRules :: P.BoolExpr -> Simplification
 applySimplifyingRules boolExpr = case applyRules simplifyingRules boolExpr of
   Nothing -> []
   Just (simplifiedBoolExpr, ruleName) -> (simplifiedBoolExpr, ruleName) : applySimplifyingRules simplifiedBoolExpr
@@ -120,6 +136,39 @@ applySimplifyingRules boolExpr = case applyRules simplifyingRules boolExpr of
         (komplement, "komplement"),
         (absorption, "absorption")
       ]
+
+maxDepth :: Int
+maxDepth = 5
+
+complexitySimplification :: Int -> Simplification -> Int
+complexitySimplification baseComplexity [] = baseComplexity
+complexitySimplification baseComplexity simplification = complexity $ fst $ last simplification
+
+compareSimplifications :: Int -> Simplification -> Simplification -> Ordering
+compareSimplifications baseComplexity leftSimplification rightSimplification
+  | complexityLeft < complexityRight = GT
+  | complexityLeft > complexityRight = LT
+  | complexityLeft == complexityRight = if lengthLeft > lengthRight then LT else (if lengthLeft < lengthRight then GT else EQ)
+  where
+    complexityLeft = complexitySimplification baseComplexity leftSimplification
+    complexityRight = complexitySimplification baseComplexity rightSimplification
+    lengthLeft = length leftSimplification
+    lengthRight = length rightSimplification
+
+bestSimplification :: Int -> [Simplification] -> Simplification
+bestSimplification baseComplexity simplifications = maximumBy (compareSimplifications baseComplexity) ([] : simplifications)
+
+simplify :: Int -> P.BoolExpr -> [RuleApplication]
+simplify depth boolExpr
+  | depth > maxDepth = simplifyingRulesApplied
+  | otherwise = simplifyingRulesApplied ++ bestSimplification (complexity boolExprToSimplify) simplifications
+  where
+    simplifyingRulesApplied = applySimplifyingRules boolExpr
+    boolExprToSimplify = case simplifyingRulesApplied of
+      [] -> boolExpr
+      [x] -> fst x
+      _ -> fst $ last simplifyingRulesApplied
+    simplifications = map (\(boolExpr, ruleName) -> (boolExpr, ruleName) : simplify (depth + 1) boolExpr) (allRuleApplicationsChangingRules boolExprToSimplify)
 
 printSimplificationWithInitialExpr :: P.BoolExpr -> [(P.BoolExpr, String)] -> IO ()
 printSimplificationWithInitialExpr initialBoolExpr simplification = print initialBoolExpr >> printSimplification simplification
