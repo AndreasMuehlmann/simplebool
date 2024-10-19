@@ -138,7 +138,7 @@ applySimplifyingRules boolExpr = case applyRules simplifyingRules boolExpr of
       ]
 
 maxDepth :: Int
-maxDepth = 5
+maxDepth = 0
 
 complexitySimplification :: Int -> Simplification -> Int
 complexitySimplification baseComplexity [] = baseComplexity
@@ -160,7 +160,7 @@ bestSimplification baseComplexity simplifications = maximumBy (compareSimplifica
 
 simplify :: Int -> P.BoolExpr -> [RuleApplication]
 simplify depth boolExpr
-  | depth > maxDepth = simplifyingRulesApplied
+  | depth >= maxDepth = simplifyingRulesApplied
   | otherwise = simplifyingRulesApplied ++ bestSimplification (complexity boolExprToSimplify) simplifications
   where
     simplifyingRulesApplied = applySimplifyingRules boolExpr
