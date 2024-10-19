@@ -80,7 +80,7 @@ applySimplifyingRules boolExpr = case applyRules simplifyingRules boolExpr of
       ]
 
 maxDepth :: Int
-maxDepth = 5
+maxDepth = 4
 
 complexitySimplification :: Int -> Simplification -> Int
 complexitySimplification baseComplexity [] = baseComplexity
