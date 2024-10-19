@@ -56,12 +56,16 @@ komplement boolExpr = Nothing
 absorption :: P.BoolExpr -> Maybe P.BoolExpr
 absorption (P.Disjunction boolExprA (P.Conjunction boolExprB boolExprC))
   | boolExprA == boolExprB || boolExprA == boolExprC = Just boolExprA
+  | otherwise = Nothing
 absorption (P.Disjunction (P.Conjunction boolExprB boolExprC) boolExprA)
   | boolExprA == boolExprB || boolExprA == boolExprC = Just boolExprA
+  | otherwise = Nothing
 absorption (P.Conjunction boolExprA (P.Disjunction boolExprB boolExprC))
   | boolExprA == boolExprB || boolExprA == boolExprC = Just boolExprA
+  | otherwise = Nothing
 absorption (P.Conjunction (P.Disjunction boolExprB boolExprC) boolExprA)
   | boolExprA == boolExprB || boolExprA == boolExprC = Just boolExprA
+  | otherwise = Nothing
 absorption boolExpr = Nothing
 
 applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> P.BoolExpr -> Maybe P.BoolExpr
