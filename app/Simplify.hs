@@ -80,6 +80,13 @@ kommutativ (P.Conjunction leftBoolExpr rightBoolExpr) = Just $ P.Conjunction rig
 kommutativ (P.Disjunction leftBoolExpr rightBoolExpr) = Just $ P.Disjunction rightBoolExpr leftBoolExpr
 kommutativ boolExpr = Nothing
 
+assoziativ :: P.BoolExpr -> Maybe P.BoolExpr
+assoziativ (P.Conjunction leftBoolExpr (P.Conjunction rightLeftBoolExpr rightRightBoolExpr)) = Just $ P.Conjunction (P.Conjunction leftBoolExpr rightLeftBoolExpr) rightRightBoolExpr
+assoziativ (P.Conjunction (P.Conjunction leftLeftBoolExpr leftRightBoolExpr) rightBoolExpr) = Just $ P.Conjunction leftLeftBoolExpr (P.Conjunction leftRightBoolExpr rightBoolExpr)
+assoziativ (P.Disjunction leftBoolExpr (P.Disjunction rightLeftBoolExpr rightRightBoolExpr)) = Just $ P.Disjunction (P.Disjunction leftBoolExpr rightLeftBoolExpr) rightRightBoolExpr
+assoziativ (P.Disjunction (P.Disjunction leftLeftBoolExpr leftRightBoolExpr) rightBoolExpr) = Just $ P.Disjunction leftLeftBoolExpr (P.Disjunction leftRightBoolExpr rightBoolExpr)
+assoziativ boolExpr = Nothing
+
 applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> P.BoolExpr -> Maybe P.BoolExpr
 applyRule rule boolExpr =
   rule boolExpr
@@ -113,7 +120,10 @@ allRuleApplicationsForRules rules boolExpr = concat appliedRules
 allRuleApplicationsChangingRules :: P.BoolExpr -> [RuleApplication]
 allRuleApplicationsChangingRules = allRuleApplicationsForRules changingRules
   where
-    changingRules = [(kommutativ, "kommutativ")]
+    changingRules =
+      [ (kommutativ, "kommutativ"),
+        (assoziativ, "assoziativ")
+      ]
 
 complexity :: P.BoolExpr -> Int
 complexity (P.Conjunction leftBoolExpr rightBoolExpr) = 1 + complexity leftBoolExpr + complexity rightBoolExpr
