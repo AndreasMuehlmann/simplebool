@@ -1,8 +1,11 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use first" #-}
+{-# HLINT ignore "Use tuple-section" #-}
 module Simplify where
 
 import qualified Parse as P
+
+import Control.Applicative
 
 
 identity:: P.BoolExpr -> Maybe P.BoolExpr
@@ -62,24 +65,13 @@ absorption (P.Conjunction (P.Disjunction boolExprB boolExprC) boolExprA)
     | boolExprA == boolExprB || boolExprA == boolExprC = Just boolExprA
 absorption boolExpr = Nothing
 
-applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> String -> P.BoolExpr -> Maybe (P.BoolExpr, String)
-applyRule rule ruleName boolExpr = case rule boolExpr of
-                            Just newBoolExpr -> Just (newBoolExpr, ruleName)
-                            Nothing -> case boolExpr of
-                                P.Conjunction leftBoolExpr rightBoolExpr -> case applyRule rule ruleName leftBoolExpr of
-                                    Just (newLeftBoolExpr, ruleName) -> Just (P.Conjunction newLeftBoolExpr rightBoolExpr, ruleName)
-                                    Nothing -> case applyRule rule ruleName rightBoolExpr of
-                                        Just (newRightBoolExpr, ruleName) -> Just (P.Conjunction leftBoolExpr newRightBoolExpr, ruleName)
-                                        Nothing -> Nothing
-                                P.Disjunction leftBoolExpr rightBoolExpr -> case applyRule rule ruleName leftBoolExpr of
-                                    Just (newLeftBoolExpr, ruleName) -> Just (P.Disjunction newLeftBoolExpr rightBoolExpr, ruleName)
-                                    Nothing -> case applyRule rule ruleName rightBoolExpr of
-                                        Just (newRightBoolExpr, ruleName) -> Just (P.Disjunction leftBoolExpr newRightBoolExpr, ruleName)
-                                        Nothing -> Nothing
-                                P.Negation boolExpr -> case applyRule rule ruleName boolExpr of
-                                    Just (newNegatedBoolExpr, ruleName) -> Just (P.Negation newNegatedBoolExpr, ruleName)
-                                    Nothing -> Nothing
-                                _ -> Nothing
+applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> P.BoolExpr -> Maybe P.BoolExpr
+applyRule rule boolExpr = rule boolExpr <|>
+                          case boolExpr of
+                            P.Conjunction leftBoolExpr rightBoolExpr -> ((`P.Conjunction` rightBoolExpr) <$> applyRule rule leftBoolExpr) <|> (P.Conjunction leftBoolExpr <$> applyRule rule rightBoolExpr)
+                            P.Disjunction leftBoolExpr rightBoolExpr -> ((`P.Disjunction` rightBoolExpr) <$> applyRule rule leftBoolExpr) <|> (P.Disjunction leftBoolExpr <$> applyRule rule rightBoolExpr)
+                            P.Negation boolExpr -> P.Negation <$> applyRule rule boolExpr
+                            _ -> Nothing
 
 allRuleApplications :: (P.BoolExpr -> Maybe P.BoolExpr) -> String -> P.BoolExpr -> [(P.BoolExpr, String)]
 allRuleApplications rule ruleName boolExpr = case rule boolExpr of
@@ -94,15 +86,10 @@ allRuleApplications rule ruleName boolExpr = case rule boolExpr of
                                                     P.Negation boolExpr -> map (\(newBoolExpr, ruleName) -> (P.Negation newBoolExpr, ruleName)) (allRuleApplications rule ruleName boolExpr)
                                                     _ -> [])
 
-firstJust :: [Maybe a] -> Maybe a
-firstJust [] = Nothing
-firstJust (x:xs) = case x of
-    Just val -> Just val
-    Nothing  -> firstJust xs
-
 applyRules :: [(P.BoolExpr -> Maybe P.BoolExpr, String)] -> P.BoolExpr -> Maybe (P.BoolExpr, String)
-applyRules rules boolExpr = firstJust $ map ($ boolExpr) curried
-                    where curried = map (uncurry applyRule) rules
+applyRules rules boolExpr = foldr (<|>) Nothing appliedRules
+                    where curried = map (\(rule, ruleName) -> (applyRule rule, ruleName)) rules
+                          appliedRules = map (\(rule, ruleName) -> (\newBoolExpr -> (newBoolExpr, ruleName)) <$> rule boolExpr) curried
 
 score :: P.BoolExpr -> Int
 score (P.Conjunction leftBoolExpr rightBoolExpr) = 1 + score leftBoolExpr + score rightBoolExpr
