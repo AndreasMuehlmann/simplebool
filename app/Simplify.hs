@@ -10,6 +10,7 @@ import Data.Maybe (maybeToList)
 import Data.Ord (comparing)
 import qualified Parse as P
 import qualified Type.Reflection as P
+import Parse (BoolExpr(Negation))
 
 type RuleApplication = (P.BoolExpr, String)
 
@@ -108,6 +109,13 @@ distributivityFactoring (P.Disjunction (P.Conjunction leftLeftBoolExpr leftRight
   | otherwise = Nothing
 distributivityFactoring boolExpr = Nothing
 
+demorgan :: P.BoolExpr -> Maybe P.BoolExpr 
+demorgan (Negation (P.Conjunction leftBoolExpr rightBoolExpr)) = Just $ P.Conjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)
+demorgan (Negation (P.Disjunction leftBoolExpr rightBoolExpr)) = Just $ P.Disjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)
+demorgan (P.Conjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)) = Just $ P.Negation (P.Conjunction leftBoolExpr rightBoolExpr)
+demorgan (P.Disjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)) = Just $ P.Negation (P.Disjunction leftBoolExpr rightBoolExpr)
+demorgan boolExpr = Nothing
+
 applyRule :: (P.BoolExpr -> Maybe P.BoolExpr) -> P.BoolExpr -> Maybe P.BoolExpr
 applyRule rule boolExpr =
   rule boolExpr
@@ -145,7 +153,8 @@ allRuleApplicationsChangingRules = allRuleApplicationsForRules changingRules
       [ (kommutativity, "kommutativity"),
         (assoziativity, "assoziativity"),
         (distributivityFactoring, "distributivity-factoring"),
-        (distributivityExpanding, "distributivity-expanding")
+        (distributivityExpanding, "distributivity-expanding"),
+        (demorgan, "de-morgan")
       ]
 
 complexity :: P.BoolExpr -> Int
@@ -164,14 +173,14 @@ applySimplifyingRules boolExpr = case applyRules simplifyingRules boolExpr of
       [ (annihilation, "annihilation"),
         (identity, "identity"),
         (duality, "duality"),
-        (doubleNegation, "double negation"),
+        (doubleNegation, "double-negation"),
         (idempotence, "idempotence"),
         (complement, "complement"),
         (absorption, "absorption")
       ]
 
 maxDepth :: Int
-maxDepth = 4
+maxDepth = 5
 
 complexitySimplification :: Int -> Simplification -> Int
 complexitySimplification baseComplexity [] = baseComplexity
