@@ -96,8 +96,8 @@ distributivityFactoring (P.Disjunction (P.Conjunction leftLeftBoolExpr leftRight
 distributivityFactoring boolExpr = Nothing
 
 demorgan :: P.BoolExpr -> Maybe P.BoolExpr 
-demorgan (P.Negation (P.Conjunction leftBoolExpr rightBoolExpr)) = Just $ P.Conjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)
-demorgan (P.Negation (P.Disjunction leftBoolExpr rightBoolExpr)) = Just $ P.Disjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)
-demorgan (P.Conjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)) = Just $ P.Negation (P.Conjunction leftBoolExpr rightBoolExpr)
-demorgan (P.Disjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)) = Just $ P.Negation (P.Disjunction leftBoolExpr rightBoolExpr)
+demorgan (P.Negation (P.Conjunction leftBoolExpr rightBoolExpr)) = Just $ P.Disjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)
+demorgan (P.Negation (P.Disjunction leftBoolExpr rightBoolExpr)) = Just $ P.Conjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)
+demorgan (P.Conjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)) = Just $ P.Negation (P.Disjunction leftBoolExpr rightBoolExpr)
+demorgan (P.Disjunction (P.Negation leftBoolExpr) (P.Negation rightBoolExpr)) = Just $ P.Negation (P.Conjunction leftBoolExpr rightBoolExpr)
 demorgan boolExpr = Nothing
